@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <title>BP Tracker</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <h1>BP Tracker</h1>
+    </div>
+    <div class="topbar-actions">
+      <button id="btn-import" class="btn ghost" title="Import readings from a CSV file">Import CSV</button>
+      <button id="btn-export" class="btn ghost" title="Save all readings to a CSV file">Export CSV</button>
+      <button id="btn-folder" class="btn ghost" title="Show where your data is stored">Data folder</button>
+      <button id="btn-settings" class="btn ghost" title="Change the blood pressure thresholds">⚙ Settings</button>
+    </div>
+  </header>
+
+  <dialog id="settings-dialog">
+    <form id="settings-form" method="dialog">
+      <h2>Thresholds</h2>
+      <p class="muted">Readings at or below the normal limit count as Normal. Between the limits they count as Elevated.</p>
+      <div class="pref-grid">
+        <div class="pref-head"></div><div class="pref-head">Systolic</div><div class="pref-head">Diastolic</div>
+        <label for="p-normal-sys">Normal up to</label>
+        <input type="number" id="p-normal-sys" min="50" max="260" required />
+        <input type="number" id="p-normal-dia" min="30" max="160" required />
+        <label for="p-high-sys">High from</label>
+        <input type="number" id="p-high-sys" min="50" max="260" required />
+        <input type="number" id="p-high-dia" min="30" max="160" required />
+        <label for="p-crisis-sys">Crisis above</label>
+        <input type="number" id="p-crisis-sys" min="50" max="300" required />
+        <input type="number" id="p-crisis-dia" min="30" max="200" required />
+      </div>
+      <p class="hint">These values are stored in <code>preferences.json</code>, which you can also edit by hand.</p>
+
+      <h2 class="section-title">Data folder</h2>
+      <p class="muted">Where <code>bp-data.json</code> is saved. Pick a folder in OneDrive, Dropbox or a USB drive to keep a copy elsewhere.</p>
+      <div class="folder-row">
+        <div id="p-data-folder" class="folder-path" title=""></div>
+        <button type="button" id="btn-choose-folder" class="btn ghost">Change…</button>
+        <button type="button" id="btn-default-folder" class="btn ghost">Use default</button>
+      </div>
+      <div class="form-actions">
+        <button type="button" id="btn-prefs-file" class="btn ghost">Open file</button>
+        <span style="flex:1"></span>
+        <button type="button" id="btn-prefs-cancel" class="btn ghost">Cancel</button>
+        <button type="submit" id="btn-prefs-save" class="btn primary" style="flex:0 0 auto">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <main class="layout">
+    <!-- LEFT: Entry form -->
+    <section class="card form-card">
+      <h2 id="form-title">New reading</h2>
+      <form id="entry-form" autocomplete="off">
+        <div class="row date-time">
+          <label>Date
+            <input type="date" id="f-date" required />
+          </label>
+          <label><span>Time <button type="button" id="btn-now" class="link-btn" title="Set to the current time">now</button></span>
+            <div class="time-picker">
+              <select id="f-hour" aria-label="Hour"></select>
+              <span class="colon">:</span>
+              <select id="f-min" aria-label="Minute"></select>
+              <select id="f-ampm" aria-label="AM or PM">
+                <option value="AM">AM</option>
+                <option value="PM">PM</option>
+              </select>
+            </div>
+          </label>
+        </div>
+
+        <div class="row big-inputs">
+          <label>Systolic
+            <input type="number" id="f-sys" inputmode="numeric" min="50" max="260" placeholder="120" required />
+            <span class="unit">mmHg</span>
+          </label>
+          <label>Diastolic
+            <input type="number" id="f-dia" inputmode="numeric" min="30" max="160" placeholder="80" required />
+            <span class="unit">mmHg</span>
+          </label>
+          <label>Pulse
+            <input type="number" id="f-pulse" inputmode="numeric" min="30" max="220" placeholder="70" />
+            <span class="unit">bpm</span>
+          </label>
+        </div>
+
+        <div id="live-category" class="category-pill hidden"></div>
+
+        <label><span>Notes <span class="muted">(optional)</span></span>
+          <input type="text" id="f-note" placeholder="e.g. morning, after coffee, left arm" maxlength="200" />
+        </label>
+
+        <div class="form-actions">
+          <button type="submit" id="btn-save" class="btn primary">Save reading</button>
+          <button type="button" id="btn-cancel" class="btn ghost hidden">Cancel</button>
+        </div>
+        <p class="hint">Tip: press <kbd>Enter</kbd> to save. Sit quietly for 5 minutes before measuring.</p>
+      </form>
+    </section>
+
+    <!-- RIGHT: Stats, chart, history -->
+    <section class="content">
+      <div class="stats" id="stats">
+        <div class="stat">
+          <div class="stat-label">Last reading</div>
+          <div class="stat-value" id="s-last">–</div>
+          <div class="stat-sub" id="s-last-sub"></div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">7-day average</div>
+          <div class="stat-value" id="s-avg7">–</div>
+          <div class="stat-sub" id="s-avg7-sub"></div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">30-day average</div>
+          <div class="stat-value" id="s-avg30">–</div>
+          <div class="stat-sub" id="s-avg30-sub"></div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Total readings</div>
+          <div class="stat-value" id="s-count">0</div>
+          <div class="stat-sub" id="s-count-sub"></div>
+        </div>
+      </div>
+
+      <div class="card chart-card">
+        <div class="card-head">
+          <h2>Trend</h2>
+          <div class="seg" id="range-seg">
+            <button data-range="7" class="seg-btn">7 days</button>
+            <button data-range="30" class="seg-btn active">30 days</button>
+            <button data-range="90" class="seg-btn">90 days</button>
+            <button data-range="0" class="seg-btn">All</button>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="chart" height="240"></canvas>
+          <div id="chart-empty" class="empty hidden">Add a few readings to see your trend.</div>
+        </div>
+        <div class="legend">
+          <span><i class="sw sys"></i>Systolic</span>
+          <span><i class="sw dia"></i>Diastolic</span>
+          <span><i class="sw ref"></i><span id="legend-ref">Normal limit</span></span>
+        </div>
+      </div>
+
+      <div class="card history-card">
+        <div class="card-head">
+          <h2>History</h2>
+          <input type="search" id="search" placeholder="Search notes or date…" />
+        </div>
+        <div class="table-wrap">
+          <table id="history">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Time</th>
+                <th class="num">Sys</th>
+                <th class="num">Dia</th>
+                <th class="num">Pulse</th>
+                <th>Category</th>
+                <th>Notes</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="history-body"></tbody>
+          </table>
+          <div id="history-empty" class="empty">No readings yet. Add your first one on the left.</div>
+        </div>
+      </div>
+
+      <p class="disclaimer">Categories use the thresholds set in Settings. This app is a personal log, not medical advice. Talk to your doctor about your readings.</p>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="renderer.js"></script>
+</body>
+</html>
