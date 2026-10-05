@@ -14,7 +14,7 @@ npm start
 
 ## What it does
 
-- Log a reading: date and time are pre-filled (click "now" to reset them). Type systolic, diastolic, optional pulse and a note, press Enter. After the third digit of systolic or diastolic the cursor jumps to the next field on its own.
+- Log a reading: date and time are pre-filled (click "now" to reset them). Type systolic, diastolic, optional pulse and a note, press Enter. Systolic, diastolic and pulse jump to the next field on their own once the number is complete (three digits, or two digits over 40). When you edit a reading, clicking a number selects it so you can type over it.
 - The category (Normal, Elevated, High, Crisis) shows as you type. Normal is up to 135/89 by default.
 
 ## Thresholds

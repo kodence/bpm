@@ -515,18 +515,25 @@ async function saveSettings(ev) {
   toast(`Thresholds saved · normal up to ${prefs.normalMax.sys}/${prefs.normalMax.dia}`);
 }
 
-// Keep a numeric field to 3 digits and jump to the next field once 3 digits are typed
+// Keep a numeric field to 3 digits and jump to the next field as soon as the reading is complete:
+// 3 digits, or 2 digits above 40 (no valid reading starts with 41-99, so nothing more is coming)
 function autoAdvance(fromId, toId) {
   const el = $(fromId);
-  el.addEventListener('input', () => {
-    const digits = el.value.replace(/\D/g, '').slice(0, 3);
+  // Select the old value on focus so typing replaces it when editing a reading
+  el.addEventListener('focus', () => el.select());
+  el.addEventListener('input', (e) => {
+    const raw = el.value.replace(/\D/g, '');
+    const digits = raw.slice(0, 3);
     if (digits !== el.value) el.value = digits;
-    if (digits.length === 3 && toId) {
+    // Only advance while typing forward: not on delete, and not when a 4th digit was cut off
+    if (!e.inputType?.startsWith('insert') || raw.length > 3) return;
+    if (digits.length === 3 || Number(digits) > 40) {
       const next = $(toId);
+      next.dataset.autoAdvanced = '1';
       next.focus();
-      next.select?.();
     }
   });
+  el.addEventListener('blur', () => delete el.dataset.autoAdvanced);
 }
 
 // ---------- Wire up ----------
@@ -550,7 +557,7 @@ async function init() {
   ['f-sys', 'f-dia'].forEach((id) => $(id).addEventListener('input', updateLivePill));
   autoAdvance('f-sys', 'f-dia');
   autoAdvance('f-dia', 'f-pulse');
-  autoAdvance('f-pulse', null);
+  autoAdvance('f-pulse', 'f-note');
 
   $('btn-settings').addEventListener('click', openSettings);
   $('settings-form').addEventListener('submit', saveSettings);
@@ -559,9 +566,14 @@ async function init() {
   $('btn-choose-folder').addEventListener('click', async () => applyDataFolderResult(await window.bp.chooseDataFolder()));
   $('btn-default-folder').addEventListener('click', async () => applyDataFolderResult(await window.bp.useDefaultDataFolder()));
 
-  // Enter in systolic jumps to diastolic, then to pulse, so you can type "120 Enter 80 Enter"
+  // Enter in systolic jumps to diastolic, then to pulse, so you can type "120 Enter 80 Enter".
+  // An Enter right after systolic auto-advanced into an empty diastolic is swallowed, so that habit still works.
+  $('f-dia').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && $('f-dia').dataset.autoAdvanced && !$('f-dia').value) e.preventDefault();
+    delete $('f-dia').dataset.autoAdvanced;
+  });
   $('f-sys').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('f-dia').focus(); } });
-  $('f-dia').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !$('f-pulse').value) { e.preventDefault(); $('f-pulse').focus(); } });
+  $('f-dia').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.defaultPrevented && !$('f-pulse').value) { e.preventDefault(); $('f-pulse').focus(); } });
   // Enter anywhere else in the form saves the reading
   $('entry-form').addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' || e.defaultPrevented || e.target.tagName !== 'INPUT') return;
